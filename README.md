@@ -347,9 +347,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📞 Support & Contact
 
-- **Issues**: [GitHub Issues](https://github.com/your-username/headlight-depth-estimation/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/your-username/headlight-depth-estimation/discussions)
-- **Email**: your-email@example.com
+- **Issues**: [GitHub Issues](https://github.com/your-mohammadasjadkhan/headlight-depth-estimation/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/mohammadasjadkhan/headlight-depth-estimation/discussions)
+- **Email**: asjad0256@gmail.com
 
 ---
 
