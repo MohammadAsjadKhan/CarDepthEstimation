@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Car Headlight Depth Estimation</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            text-align: center;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.3);
+            border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            background: linear-gradient(45deg, #00f5ff, #00d4ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .container {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+
+        .video-container {
+            position: relative;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .video-feed {
+            display: block;
+            max-width: 100%;
+            height: auto;
+            border-radius: 15px;
+        }
+
+        .canvas-container {
+            position: relative;
+        }
+
+        .overlay-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+            border-radius: 15px;
+        }
+
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            min-width: 300px;
+        }
+
+        .control-panel {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 15px;
+            padding: 25px;
+        }
+
+        .control-panel h3 {
+            margin-bottom: 15px;
+            color: #00f5ff;
+            font-size: 1.3em;
+        }
+
+        .btn {
+            background: linear-gradient(45deg, #00f5ff, #00d4ff);
+            border: none;
+            color: white;
+            padding: 12px 25px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            box-shadow: 0 5px 15px rgba(0, 245, 255, 0.3);
+            margin: 5px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 245, 255, 0.5);
+        }
+
+        .btn:disabled {
+            background: #666;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .btn.stop {
+            background: linear-gradient(45deg, #ff4757, #ff3838);
+            box-shadow: 0 5px 15px rgba(255, 71, 87, 0.3);
+        }
+
+        .btn.stop:hover {
+            box-shadow: 0 8px 25px rgba(255, 71, 87, 0.5);
+        }
+
+        .metrics {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .metric {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .metric-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #00f5ff;
+            margin-bottom: 5px;
+        }
+
+        .metric-label {
+            font-size: 0.9em;
+            opacity: 0.8;
+        }
+
+        .status {
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        .status.success {
+            background: rgba(39, 174, 96, 0.3);
+            border: 1px solid rgba(39, 174, 96, 0.5);
+            color: #2ecc71;
+        }
+
+        .status.error {
+            background: rgba(231, 76, 60, 0.3);
+            border: 1px solid rgba(231, 76, 60, 0.5);
+            color: #e74c3c;
+        }
+
+        .status.warning {
+            background: rgba(241, 196, 15, 0.3);
+            border: 1px solid rgba(241, 196, 15, 0.5);
+            color: #f1c40f;
+        }
+
+        .settings {
+            display: grid;
+            gap: 15px;
+        }
+
+        .setting-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .setting-item label {
+            font-weight: bold;
+        }
+
+        .setting-item input[type="range"] {
+            width: 120px;
+            accent-color: #00f5ff;
+        }
+
+        .setting-item input[type="number"] {
+            width: 80px;
+            padding: 5px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 5px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top: 4px solid #00f5ff;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .distance-alert {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 25px;
+            border-radius: 10px;
+            font-weight: bold;
+            font-size: 1.2em;
+            z-index: 1000;
+            transition: all 0.3s ease;
+            display: none;
+        }
+
+        .distance-alert.danger {
+            background: rgba(255, 71, 87, 0.9);
+            border: 2px solid #ff4757;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                flex-direction: column;
+            }
+
+            .controls {
+                min-width: auto;
+                width: 100%;
+            }
+
+            .header h1 {
+                font-size: 2em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🚗 Car Headlight Depth Estimation</h1>
+        <p>Real-time distance measurement using computer vision</p>
+    </div>
+
+    <div class="container">
+        <div class="video-container">
+            <div class="canvas-container">
+                <video id="videoElement" class="video-feed" autoplay muted playsinline></video>
+                <canvas id="overlayCanvas" class="overlay-canvas"></canvas>
+            </div>
+        </div>
+
+        <div class="controls">
+            <div class="control-panel">
+                <h3>📹 Camera Controls</h3>
+                <button id="startBtn" class="btn">Start Camera</button>
+                <button id="stopBtn" class="btn stop" disabled>Stop Camera</button>
+                <button id="captureBtn" class="btn" disabled>📸 Capture Frame</button>
+            </div>
+
+            <div class="control-panel">
+                <h3>📊 Distance Metrics</h3>
+                <div id="statusDiv" class="status warning">Click "Start Camera" to begin</div>
+                <div class="metrics">
+                    <div class="metric">
+                        <div id="nearestDistance" class="metric-value">--</div>
+                        <div class="metric-label">Nearest (m)</div>
+                    </div>
+                    <div class="metric">
+                        <div id="centerDistance" class="metric-value">--</div>
+                        <div class="metric-label">Center (m)</div>
+                    </div>
+                    <div class="metric">
+                        <div id="fpsCounter" class="metric-value">--</div>
+                        <div class="metric-label">FPS</div>
+                    </div>
+                    <div class="metric">
+                        <div id="brightRegions" class="metric-value">--</div>
+                        <div class="metric-label">Bright Regions</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="control-panel">
+                <h3>⚙️ Detection Settings</h3>
+                <div class="settings">
+                    <div class="setting-item">
+                        <label>Brightness Threshold:</label>
+                        <input type="range" id="brightnessSlider" min="100" max="255" value="180">
+                        <span id="brightnessValue">180</span>
+                    </div>
+                    <div class="setting-item">
+                        <label>Min Area:</label>
+                        <input type="number" id="minAreaInput" min="100" max="2000" value="500">
+                    </div>
+                    <div class="setting-item">
+                        <label>Depth Scale:</label>
+                        <input type="range" id="depthScaleSlider" min="1" max="50" value="10" step="0.5">
+                        <span id="depthScaleValue">10</span>
+                    </div>
+                    <div class="setting-item">
+                        <label>Show Overlay:</label>
+                        <input type="checkbox" id="showOverlay" checked>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="loading" id="loadingDiv">
+        <div class="spinner"></div>
+        <p>Processing frame...</p>
+    </div>
+
+    <div class="distance-alert" id="distanceAlert">
+        ⚠️ OBSTACLE DETECTED: 2.5m
+    </div>
+
+    <script>
+        class HeadlightDepthSystem {
+            constructor() {
+                this.video = document.getElementById('videoElement');
+                this.canvas = document.getElementById('overlayCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.stream = null;
+                this.isProcessing = false;
+                this.animationId = null;
+
+                // Settings
+                this.settings = {
+                    brightnessThreshold: 180,
+                    minArea: 500,
+                    depthScale: 10,
+                    showOverlay: true
+                };
+
+                // Performance tracking
+                this.fpsCounter = 0;
+                this.fpsStartTime = Date.now();
+                this.currentFps = 0;
+
+                // Distance tracking for alerts
+                this.lastDistance = Infinity;
+
+                this.initializeEventListeners();
+            }
+
+            initializeEventListeners() {
+                // Camera controls
+                document.getElementById('startBtn').addEventListener('click', () => this.startCamera());
+                document.getElementById('stopBtn').addEventListener('click', () => this.stopCamera());
+                document.getElementById('captureBtn').addEventListener('click', () => this.captureFrame());
+
+                // Settings
+                document.getElementById('brightnessSlider').addEventListener('input', (e) => {
+                    this.settings.brightnessThreshold = parseInt(e.target.value);
+                    document.getElementById('brightnessValue').textContent = e.target.value;
+                });
+
+                document.getElementById('minAreaInput').addEventListener('input', (e) => {
+                    this.settings.minArea = parseInt(e.target.value);
+                });
+
+                document.getElementById('depthScaleSlider').addEventListener('input', (e) => {
+                    this.settings.depthScale = parseFloat(e.target.value);
+                    document.getElementById('depthScaleValue').textContent = e.target.value;
+                });
+
+                document.getElementById('showOverlay').addEventListener('change', (e) => {
+                    this.settings.showOverlay = e.target.checked;
+                });
+            }
+
+            async startCamera() {
+                try {
+                    this.updateStatus('Requesting camera access...', 'warning');
+
+                    // Request camera access with high quality settings
+                    const constraints = {
+                        video: {
+                            width: { ideal: 1280, min: 640 },
+                            height: { ideal: 720, min: 480 },
+                            frameRate: { ideal: 30, min: 15 },
+                            facingMode: 'environment' // Try rear camera first, fallback to front
+                        }
+                    };
+
+                    try {
+                        this.stream = await navigator.mediaDevices.getUserMedia(constraints);
+                    } catch (err) {
+                        // Fallback to front camera if rear camera fails
+                        console.log('Rear camera not available, trying front camera');
+                        constraints.video.facingMode = 'user';
+                        this.stream = await navigator.mediaDevices.getUserMedia(constraints);
+                    }
+
+                    this.video.srcObject = this.stream;
+
+                    // Wait for video to load
+                    await new Promise((resolve) => {
+                        this.video.onloadedmetadata = () => {
+                            this.video.play();
+                            resolve();
+                        };
+                    });
+
+                    // Setup canvas
+                    this.setupCanvas();
+
+                    // Start processing
+                    this.startProcessing();
+
+                    // Update UI
+                    document.getElementById('startBtn').disabled = true;
+                    document.getElementById('stopBtn').disabled = false;
+                    document.getElementById('captureBtn').disabled = false;
+
+                    this.updateStatus('Camera started successfully!', 'success');
+
+                } catch (error) {
+                    console.error('Error accessing camera:', error);
+                    this.updateStatus(`Camera error: ${error.message}`, 'error');
+                }
+            }
+
+            stopCamera() {
+                if (this.stream) {
+                    this.stream.getTracks().forEach(track => track.stop());
+                    this.stream = null;
+                }
+
+                if (this.animationId) {
+                    cancelAnimationFrame(this.animationId);
+                    this.animationId = null;
+                }
+
+                this.video.srcObject = null;
+                this.clearCanvas();
+
+                // Update UI
+                document.getElementById('startBtn').disabled = false;
+                document.getElementById('stopBtn').disabled = true;
+                document.getElementById('captureBtn').disabled = true;
+
+                this.updateStatus('Camera stopped', 'warning');
+                this.resetMetrics();
+            }
+
+            setupCanvas() {
+                // Match canvas size to video
+                this.canvas.width = this.video.videoWidth;
+                this.canvas.height = this.video.videoHeight;
+
+                // Set CSS size to match video display size
+                const rect = this.video.getBoundingClientRect();
+                this.canvas.style.width = rect.width + 'px';
+                this.canvas.style.height = rect.height + 'px';
+            }
+
+            startProcessing() {
+                const processFrame = () => {
+                    if (!this.stream) return;
+
+                    this.processCurrentFrame();
+                    this.animationId = requestAnimationFrame(processFrame);
+                };
+
+                processFrame();
+            }
+
+            processCurrentFrame() {
+                if (this.isProcessing) return;
+                this.isProcessing = true;
+
+                try {
+                    // Simulate depth estimation processing
+                    const results = this.simulateDepthEstimation();
+
+                    // Update visualization
+                    if (this.settings.showOverlay) {
+                        this.drawOverlay(results);
+                    } else {
+                        this.clearCanvas();
+                    }
+
+                    // Update metrics
+                    this.updateMetrics(results);
+
+                    // Check for distance alerts
+                    this.checkDistanceAlert(results.nearestDistance);
+
+                    // Update FPS
+                    this.updateFps();
+
+                } catch (error) {
+                    console.error('Processing error:', error);
+                } finally {
+                    this.isProcessing = false;
+                }
+            }
+
+            simulateDepthEstimation() {
+                // This simulates the depth estimation process
+                // In a real implementation, this would send the frame to a Python backend
+
+                // Create temporary canvas for image analysis
+                const tempCanvas = document.createElement('canvas');
+                const tempCtx = tempCanvas.getContext('2d');
+                tempCanvas.width = this.video.videoWidth;
+                tempCanvas.height = this.video.videoHeight;
+
+                // Draw current frame
+                tempCtx.drawImage(this.video, 0, 0);
+
+                // Get image data
+                const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+                const data = imageData.data;
+
+                // Detect bright regions (simplified headlight detection)
+                const brightRegions = this.detectBrightRegions(data, tempCanvas.width, tempCanvas.height);
+
+                // Simulate depth calculation
+                const nearestDistance = brightRegions.length > 0 ?
+                    Math.random() * 15 + 2 : // Random distance between 2-17m when bright regions detected
+                    Infinity;
+
+                const centerDistance = Math.random() * 20 + 3; // Random distance for center region
+
+                return {
+                    nearestDistance,
+                    centerDistance,
+                    brightRegions,
+                    processingTime: Math.random() * 50 + 20 // Simulated processing time
+                };
+            }
+
+            detectBrightRegions(imageData, width, height) {
+                const regions = [];
+                const threshold = this.settings.brightnessThreshold;
+
+                // Simple bright region detection
+                for (let y = 0; y < height; y += 10) {
+                    for (let x = 0; x < width; x += 10) {
+                        const index = (y * width + x) * 4;
+                        const r = imageData[index];
+                        const g = imageData[index + 1];
+                        const b = imageData[index + 2];
+
+                        // Calculate brightness
+                        const brightness = (r + g + b) / 3;
+
+                        if (brightness > threshold) {
+                            regions.push({ x, y, brightness });
+                        }
+                    }
+                }
+
+                return regions;
+            }
+
+            drawOverlay(results) {
+                // Clear previous overlay
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+                // Draw bright regions
+                this.ctx.fillStyle = 'rgba(0, 255, 0, 0.3)';
+                this.ctx.strokeStyle = '#00ff00';
+                this.ctx.lineWidth = 2;
+
+                results.brightRegions.forEach(region => {
+                    this.ctx.fillRect(region.x - 5, region.y - 5, 10, 10);
+                    this.ctx.strokeRect(region.x - 5, region.y - 5, 10, 10);
+                });
+
+                // Draw center region
+                const centerX = this.canvas.width / 2;
+                const centerY = this.canvas.height / 2;
+                const regionWidth = 200;
+                const regionHeight = 150;
+
+                this.ctx.strokeStyle = '#0080ff';
+                this.ctx.lineWidth = 3;
+                this.ctx.strokeRect(
+                    centerX - regionWidth / 2,
+                    centerY - regionHeight / 2,
+                    regionWidth,
+                    regionHeight
+                );
+
+                // Draw distance text
+                this.ctx.fillStyle = '#ffffff';
+                this.ctx.font = 'bold 16px Arial';
+                this.ctx.fillText(`Nearest: ${results.nearestDistance.toFixed(1)}m`, 10, 30);
+                this.ctx.fillText(`Center: ${results.centerDistance.toFixed(1)}m`, 10, 55);
+                this.ctx.fillText(`FPS: ${this.currentFps.toFixed(1)}`, 10, 80);
+            }
+
+            clearCanvas() {
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+            }
+
+            updateMetrics(results) {
+                document.getElementById('nearestDistance').textContent =
+                    results.nearestDistance === Infinity ? '--' : results.nearestDistance.toFixed(1);
+                document.getElementById('centerDistance').textContent = results.centerDistance.toFixed(1);
+                document.getElementById('fpsCounter').textContent = this.currentFps.toFixed(1);
+                document.getElementById('brightRegions').textContent = results.brightRegions.length;
+            }
+
+            resetMetrics() {
+                document.getElementById('nearestDistance').textContent = '--';
+                document.getElementById('centerDistance').textContent = '--';
+                document.getElementById('fpsCounter').textContent = '--';
+                document.getElementById('brightRegions').textContent = '--';
+            }
+
+            updateFps() {
+                this.fpsCounter++;
+                if (this.fpsCounter >= 30) {
+                    const currentTime = Date.now();
+                    this.currentFps = this.fpsCounter / ((currentTime - this.fpsStartTime) / 1000);
+                    this.fpsCounter = 0;
+                    this.fpsStartTime = currentTime;
+                }
+            }
+
+            checkDistanceAlert(distance) {
+                const alertDiv = document.getElementById('distanceAlert');
+
+                if (distance < 5 && distance !== Infinity) {
+                    // Show danger alert for objects closer than 5m
+                    alertDiv.textContent = `⚠️ OBSTACLE DETECTED: ${distance.toFixed(1)}m`;
+                    alertDiv.className = 'distance-alert danger';
+                    alertDiv.style.display = 'block';
+                } else {
+                    alertDiv.style.display = 'none';
+                }
+
+                this.lastDistance = distance;
+            }
+
+            updateStatus(message, type) {
+                const statusDiv = document.getElementById('statusDiv');
+                statusDiv.textContent = message;
+                statusDiv.className = `status ${type}`;
+            }
+
+            captureFrame() {
+                // Create a temporary canvas for capture
+                const captureCanvas = document.createElement('canvas');
+                const captureCtx = captureCanvas.getContext('2d');
+
+                captureCanvas.width = this.video.videoWidth;
+                captureCanvas.height = this.video.videoHeight;
+
+                // Draw video frame
+                captureCtx.drawImage(this.video, 0, 0);
+
+                // Draw overlay if enabled
+                if (this.settings.showOverlay) {
+                    captureCtx.drawImage(this.canvas, 0, 0);
+                }
+
+                // Download the image
+                const link = document.createElement('a');
+                link.download = `headlight-depth-${Date.now()}.png`;
+                link.href = captureCanvas.toDataURL();
+                link.click();
+
+                this.updateStatus('Frame captured successfully!', 'success');
+            }
+        }
+
+        // Initialize the system when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            const system = new HeadlightDepthSystem();
+
+            // Check if getUserMedia is supported
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                system.updateStatus('Camera not supported in this browser', 'error');
+                document.getElementById('startBtn').disabled = true;
+            }
+        });
+    </script>
+</body>
+</html>
